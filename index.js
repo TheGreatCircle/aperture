@@ -1,57 +1,63 @@
-'use strict';
-const util = require('util');
-const path = require('path');
-const execa = require('execa');
-const tmp = require('tmp');
-const macosVersion = require('macos-version');
+"use strict"
+const util = require("util")
+const path = require("path")
+const execa = require("execa")
+const tmp = require("tmp")
+const macosVersion = require("macos-version")
 
-const debuglog = util.debuglog('aperture');
+const debuglog = util.debuglog("aperture")
 
 class Aperture {
   constructor() {
-    macosVersion.assertGreaterThanOrEqualTo('10.10');
+    macosVersion.assertGreaterThanOrEqualTo("10.10")
   }
 
   getAudioSources() {
-    return execa.stderr(path.join(__dirname, 'swift/main'), ['list-audio-devices']).then(stderr => {
-      try {
-        return JSON.parse(stderr);
-      } catch (err) {
-        return stderr;
-      }
-    });
+    return execa
+      .stderr(path.join(__dirname, "swift/main"), ["list-audio-devices"])
+      .then(stderr => {
+        try {
+          return JSON.parse(stderr)
+        } catch (err) {
+          return stderr
+        }
+      })
   }
 
-  startRecording({
-    fps = 30,
-    cropArea = 'none',
-    showCursor = true,
-    highlightClicks = false,
-    displayId = 'main',
-    audioSourceId = 'none'
-  } = {}) {
+  startRecording(
+    {
+      fps = 30,
+      cropArea = "none",
+      showCursor = true,
+      highlightClicks = false,
+      displayId = "main",
+      audioSourceId = "none"
+    } = {}
+  ) {
     return new Promise((resolve, reject) => {
       if (this.recorder !== undefined) {
-        reject(new Error('Call `.stopRecording()` first'));
-        return;
+        reject(new Error("Call `.stopRecording()` first"))
+        return
       }
 
       if (highlightClicks === true) {
-        showCursor = true;
+        showCursor = true
       }
 
-      this.tmpPath = tmp.tmpNameSync({postfix: '.mp4'});
+      this.tmpPath = tmp.tmpNameSync({ postfix: ".mp4" })
 
-      if (typeof cropArea === 'object') {
-        if (typeof cropArea.x !== 'number' ||
-            typeof cropArea.y !== 'number' ||
-            typeof cropArea.width !== 'number' ||
-            typeof cropArea.height !== 'number') {
-          reject(new Error('Invalid `cropArea` option object'));
-          return;
+      if (typeof cropArea === "object") {
+        if (
+          typeof cropArea.x !== "number" ||
+          typeof cropArea.y !== "number" ||
+          typeof cropArea.width !== "number" ||
+          typeof cropArea.height !== "number"
+        ) {
+          reject(new Error("Invalid `cropArea` option object"))
+          return
         }
 
-        cropArea = `${cropArea.x}:${cropArea.y}:${cropArea.width}:${cropArea.height}`;
+        cropArea = `${cropArea.x}:${cropArea.y}:${cropArea.width}:${cropArea.height}`
       }
 
       const recorderOpts = [
@@ -62,57 +68,59 @@ class Aperture {
         highlightClicks,
         displayId,
         audioSourceId
-      ];
+      ]
 
-      this.recorder = execa(path.join(__dirname, 'swift', 'main'), recorderOpts);
+      this.recorder = execa(path.join(__dirname, "swift", "main"), recorderOpts)
 
       const timeout = setTimeout(() => {
         // `.stopRecording()` was called already
         if (this.recorder === undefined) {
-          return;
+          return
         }
 
-        const err = new Error('Could not start recording within 5 seconds');
-        err.code = 'RECORDER_TIMEOUT';
-        this.recorder.kill();
-        delete this.recorder;
-        reject(err);
-      }, 5000);
+        const err = new Error("Could not start recording within 5 seconds")
+        err.code = "RECORDER_TIMEOUT"
+        this.recorder.kill()
+        delete this.recorder
+        reject(err)
+      }, 5000)
 
       this.recorder.catch(err => {
-        clearTimeout(timeout);
-        delete this.recorder;
-        reject(err);
-      });
+        clearTimeout(timeout)
+        delete this.recorder
+        reject(err)
+      })
 
-      this.recorder.stdout.setEncoding('utf8');
-      this.recorder.stdout.on('data', data => {
-        debuglog(data);
+      this.recorder.stdout.setEncoding("utf8")
+      this.recorder.stdout.on("data", data => {
+        debuglog(data)
 
-        if (data.trim() === 'R') {
+        if (data.trim() === "R") {
           // `R` is printed by Swift when the recording **actually** starts
-          clearTimeout(timeout);
-          resolve(this.tmpPath);
+          clearTimeout(timeout)
+          resolve(this.tmpPath)
         }
-      });
-    });
+      })
+    })
   }
 
   stopRecording() {
     return new Promise((resolve, reject) => {
       if (this.recorder === undefined) {
-        reject(new Error('Call `.startRecording()` first'));
-        return;
+        reject(new Error("Call `.startRecording()` first"))
+        return
       }
 
-      this.recorder.then(() => {
-        delete this.recorder;
-        resolve(this.tmpPath);
-      }).catch(reject);
+      this.recorder
+        .then(() => {
+          delete this.recorder
+          resolve(this.tmpPath)
+        })
+        .catch(reject)
 
-      this.recorder.kill();
-    });
+      this.recorder.kill()
+    })
   }
 }
 
-module.exports = () => new Aperture();
+module.exports = () => new Aperture()
