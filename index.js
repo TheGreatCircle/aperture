@@ -1,4 +1,5 @@
 "use strict"
+const { app } = require("electron")
 const util = require("util")
 const path = require("path")
 const execa = require("execa")
@@ -7,21 +8,32 @@ const macosVersion = require("macos-version")
 
 const debuglog = util.debuglog("aperture")
 
+const bin =
+  process.env.ELECTRON_ENV === "development"
+    ? path.join(__dirname, "swift", "main")
+    : path.join(
+        app.getAppPath(),
+        "..",
+        "app.asar.unpacked",
+        "node_modules",
+        "aperture",
+        "swift",
+        "main"
+      )
+
 class Aperture {
   constructor() {
     macosVersion.assertGreaterThanOrEqualTo("10.10")
   }
 
   getAudioSources() {
-    return execa
-      .stderr(path.join(__dirname, "swift/main"), ["list-audio-devices"])
-      .then(stderr => {
-        try {
-          return JSON.parse(stderr)
-        } catch (err) {
-          return stderr
-        }
-      })
+    return execa.stderr(bin, ["list-audio-devices"]).then(stderr => {
+      try {
+        return JSON.parse(stderr)
+      } catch (err) {
+        return stderr
+      }
+    })
   }
 
   startRecording(
@@ -70,7 +82,7 @@ class Aperture {
         audioSourceId
       ]
 
-      this.recorder = execa(path.join(__dirname, "swift", "main"), recorderOpts)
+      this.recorder = execa(bin, recorderOpts)
 
       const timeout = setTimeout(() => {
         // `.stopRecording()` was called already
